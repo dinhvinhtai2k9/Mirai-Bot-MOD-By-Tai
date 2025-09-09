@@ -14,7 +14,7 @@
     
 ## 📝 **introduce**
 <p>
-<strong>Mirai Bot V3 Unofficial</strong> Là một dự án được DongDev update và tiếp tục phát triển từ project Mirai-V2 của Catalizcs and SpermLord xây dựng.
+<strong>Mirai Bot V3 Unofficial</strong> Là một dự án được Tài MOD Từ DongDev update và tiếp tục phát triển từ project Mirai-V2 của Catalizcs and SpermLord xây dựng.
 </p>
 
 ## 📜 **Installation**
@@ -78,4 +78,4 @@ Sự đóng góp của bạn sẽ khiến cho project ngày càng tốt hơn, c�
 <!-- CONTACT -->
 ## ☎️ **Contact**
 
-- DongDev - [Facebook](https://facebook.com/minhdong.dev) - [GitHub](https://github.com/DongDev-VN) - dongdz.user@gmail.com
+- DVT - [Facebook]((https://www.facebook.com/dvt2k9))
