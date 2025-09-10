@@ -1,8 +1,3 @@
-const fs = require("fs-extra");
-const axios = require("axios");
-const ytdl = require("ytdl-core");
-const YouTubeAPI = require("simple-youtube-api");
-
 module.exports.config = {
     name: "video",
     version: "1.0.1",
@@ -13,114 +8,110 @@ module.exports.config = {
     usages: "[Text]",
     cooldowns: 10,
     envConfig: {
-        "YOUTUBE_API": "AIzaSyD8iWL_ZzBgYOpX4f2FTiDwMY_qIhctoRY"
+        "YOUTUBE_API": "AIzaSyD8iWL_ZzBgYOpX4f2FTiDwMY_qIhctoRY" // API cũ bạn đã cung cấp
     }
 };
 
-// Tạo folder cache nếu chưa tồn tại
-const cachePath = __dirname + "/cache";
-if (!fs.existsSync(cachePath)) fs.mkdirSync(cachePath);
+const fs = require("fs-extra");
+const path = require("path");
+const axios = require("axios");
+const ytdl = require("ytdl-core");
+const YouTubeAPI = require("simple-youtube-api");
 
 module.exports.run = async function ({ api, event, args }) {
-    const { threadID, messageID, senderID } = event;
-    const youtube = new YouTubeAPI(this.config.envConfig.YOUTUBE_API);
+    const keyapi = this.config.envConfig.YOUTUBE_API;
+    const youtube = new YouTubeAPI(keyapi);
 
-    if (!args.length) return api.sendMessage('❎ Vui lòng nhập từ khóa hoặc link YouTube', threadID, messageID);
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
-    const input = args.join(" ");
-    const urlPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
-    const isUrl = urlPattern.test(input);
+    if (!args.length) return api.sendMessage('❎ Vui lòng nhập từ khoá tìm kiếm hoặc link YouTube', event.threadID, event.messageID);
 
-    if (isUrl) {
+    const keyword = args.join(" ");
+    const videoPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
+    const isURL = videoPattern.test(args[0]);
+
+    if (isURL) {
         try {
-            const info = await ytdl.getInfo(input);
-            const idSafe = info.videoDetails.videoId.replace(/[^0-9a-zA-Z]/g, "_");
-            const filePath = `${cachePath}/${idSafe}.mp4`;
+            const videoInfo = await ytdl.getInfo(args[0]);
+            const id = videoInfo.videoDetails.videoId;
+            const filePath = path.join(cacheDir, `${id}.mp4`);
 
-            api.sendMessage(`🔄 Đang xử lý video: ${info.videoDetails.title}`, threadID, messageID);
-
-            ytdl(input)
+            ytdl(args[0])
                 .pipe(fs.createWriteStream(filePath))
                 .on("close", () => {
-                    const stats = fs.statSync(filePath);
-                    if (stats.size > 26214400) {
+                    if (fs.statSync(filePath).size > 26214400) {
                         fs.unlinkSync(filePath);
-                        return api.sendMessage(`❎ File quá lớn (>25MB), gửi link thay thế:\n${input}`, threadID, messageID);
+                        return api.sendMessage('❎ Không thể gửi video >25MB', event.threadID, event.messageID);
                     }
-                    api.sendMessage({ body: `✅ ${info.videoDetails.title}`, attachment: fs.createReadStream(filePath) }, threadID, () => fs.unlinkSync(filePath), messageID);
+                    api.sendMessage({ body: `✅ Video: ${videoInfo.videoDetails.title}`, attachment: fs.createReadStream(filePath) }, event.threadID, () => fs.unlinkSync(filePath), event.messageID);
                 });
-
         } catch (err) {
-            api.sendMessage("❎ Không thể xử lý video, lỗi: " + err.message, threadID, messageID);
+            return api.sendMessage(`❎ Lỗi khi xử lý video: ${err.message}`, event.threadID, event.messageID);
         }
-
     } else {
         try {
-            const results = await youtube.searchVideos(input, 5);
-            if (!results.length) return api.sendMessage("❎ Không tìm thấy video nào.", threadID, messageID);
+            const results = await youtube.searchVideos(keyword, 10);
+            if (!results || !results.length) return api.sendMessage('❎ Không tìm thấy video nào', event.threadID, event.messageID);
 
-            let msg = "🎬 Kết quả tìm kiếm:\n";
-            let links = [];
-            let thumbs = [];
+            let msg = `[ Có ${results.length} Kết Quả Tìm Kiếm ]\n\n`;
+            let linkArr = [];
+            let imgArr = [];
+            for (let i = 0; i < results.length; i++) {
+                const video = results[i];
+                if (!video || !video.id) continue;
 
-            let count = 0;
-            for (const video of results) {
-                count++;
-                msg += `${count}. ${video.title}\n⏰ ${video.duration}\n📺 ${video.channel.title}\n\n`;
-                links.push(video.url);
+                const videoLink = `https://www.youtube.com/watch?v=${video.id}`;
+                linkArr.push(videoLink);
 
-                // Lấy thumbnail
-                const thumbPath = `${cachePath}/thumb_${count}.png`;
-                const thumbData = (await axios.get(video.thumbnail.url, { responseType: 'arraybuffer' })).data;
-                fs.writeFileSync(thumbPath, Buffer.from(thumbData));
-                thumbs.push(fs.createReadStream(thumbPath));
+                const thumbLink = `https://img.youtube.com/vi/${video.id}/hqdefault.jpg`;
+                const thumbPath = path.join(cacheDir, `thumb${i + 1}.jpg`);
+                const thumbData = await axios.get(thumbLink, { responseType: 'arraybuffer' });
+                fs.writeFileSync(thumbPath, Buffer.from(thumbData.data, 'utf-8'));
+                imgArr.push(fs.createReadStream(thumbPath));
+
+                msg += `${i + 1}. ${video.title}\n⏰ Kênh: ${video.channel.title}\n📺 Link: ${videoLink}\n\n`;
             }
 
-            msg += "Reply số tương ứng để chọn video";
-
-            api.sendMessage({ body: msg, attachment: thumbs }, threadID, (err, info) => {
+            msg += '➡️ Reply số thứ tự để chọn video gửi vào nhóm';
+            return api.sendMessage({ body: msg, attachment: imgArr }, event.threadID, (err, info) => {
                 global.client.handleReply.push({
                     name: this.config.name,
                     messageID: info.messageID,
-                    author: senderID,
-                    links
+                    author: event.senderID,
+                    link: linkArr
                 });
-            }, messageID);
+            }, event.messageID);
 
         } catch (err) {
-            api.sendMessage("❎ Lỗi khi tìm kiếm video: " + err.message, threadID, messageID);
+            return api.sendMessage(`❎ Lỗi khi tìm kiếm video: ${err.message}`, event.threadID, event.messageID);
         }
     }
 };
 
 module.exports.handleReply = async function ({ api, event, handleReply }) {
-    const { threadID, messageID, senderID, body } = event;
-    if (senderID !== handleReply.author) return;
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
-    const choice = parseInt(body);
-    if (isNaN(choice) || choice < 1 || choice > handleReply.links.length)
-        return api.sendMessage("⚠️ Số bạn chọn không hợp lệ", threadID, messageID);
+    const choice = parseInt(event.body);
+    if (isNaN(choice) || !handleReply.link[choice - 1]) return api.sendMessage('❎ Lựa chọn không hợp lệ', event.threadID, event.messageID);
 
-    const videoUrl = handleReply.links[choice - 1];
+    const videoLink = handleReply.link[choice - 1];
+
     try {
-        const info = await ytdl.getInfo(videoUrl);
-        const idSafe = info.videoDetails.videoId.replace(/[^0-9a-zA-Z]/g, "_");
-        const filePath = `${cachePath}/${idSafe}.mp4`;
+        const info = await ytdl.getInfo(videoLink);
+        const filePath = path.join(cacheDir, `${info.videoDetails.videoId}.mp4`);
 
-        api.sendMessage(`🔄 Đang xử lý video: ${info.videoDetails.title}`, threadID, messageID);
-
-        ytdl(videoUrl)
+        ytdl(videoLink)
             .pipe(fs.createWriteStream(filePath))
             .on("close", () => {
-                const stats = fs.statSync(filePath);
-                if (stats.size > 26214400) {
+                if (fs.statSync(filePath).size > 26214400) {
                     fs.unlinkSync(filePath);
-                    return api.sendMessage(`❎ File quá lớn (>25MB), gửi link thay thế:\n${videoUrl}`, threadID, messageID);
+                    return api.sendMessage('❎ Không thể gửi video >25MB', event.threadID, event.messageID);
                 }
-                api.sendMessage({ body: `✅ ${info.videoDetails.title}`, attachment: fs.createReadStream(filePath) }, threadID, () => fs.unlinkSync(filePath), messageID);
+                api.sendMessage({ body: `✅ Video: ${info.videoDetails.title}`, attachment: fs.createReadStream(filePath) }, event.threadID, () => fs.unlinkSync(filePath), event.messageID);
             });
-
     } catch (err) {
-        api.sendMessage("❎ Không thể tải video, lỗi: " + err.message, threadID, messageID);
+        return api.sendMessage(`❎ Lỗi khi xử lý video: ${err.message}`, event.threadID, event.messageID);
     }
 };
