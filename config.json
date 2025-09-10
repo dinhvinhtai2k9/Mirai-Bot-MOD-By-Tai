@@ -23,8 +23,8 @@
   "BOTNAME": "💢 Seo Sara ❄️",
   "PREFIX": "/",
   "BOXADMIN": "",
-  "ADMINBOT": ["61570369617610"],
-  "NDH": ["61570369617610"],
+  "ADMINBOT": ["61570369617610"], 
+  "NDH": ["61570369617610"], 
   "version": "3.0.0",
   "menu": {
     "autoUnsend": {
