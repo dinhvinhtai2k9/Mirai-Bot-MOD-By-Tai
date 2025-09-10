@@ -2,7 +2,7 @@ module.exports.config = {
     name: "money",
     version: "0.0.1",
     hasPermssion: 0,
-    credits: "Mirai Team",//mod by ARAXY XD
+    credits: "Mirai Team", // mod by ARAXY XD
     description: "Kiểm tra số tiền của bản thân hoặc người được tag",
     commandCategory: "Tiện ích",
     usages: "[Tag]",
@@ -13,20 +13,26 @@ module.exports.run = async function({ api, event, args, Currencies, Users }) {
     const { threadID, messageID, senderID, mentions } = event;
     const fs = require('fs');
     const axios = require('axios');
+    const { createCanvas, loadImage, registerFont } = require('canvas');
+    const pathCache = __dirname + '/cache';
+
+    // Tạo folder cache nếu chưa tồn tại
+    if (!fs.existsSync(pathCache)) fs.mkdirSync(pathCache, { recursive: true });
 
     // Hàm làm tròn số về phần nguyên gần nhất
     function formatNumber(num) {
         return Math.floor(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     }
 
-    if(!fs.existsSync(__dirname+'/cache/SplineSans-Medium.ttf')) { 
+    // Tải font nếu chưa có
+    if (!fs.existsSync(pathCache + '/SplineSans-Medium.ttf')) { 
         let getfont = (await axios.get(`https://drive.google.com/u/0/uc?id=102B8O3_0vTn_zla13wzSzMa-vdTZOCmp&export=download`, { responseType: "arraybuffer" })).data;
-        fs.writeFileSync(__dirname+"/cache/SplineSans-Medium.ttf", Buffer.from(getfont, "utf-8"));
-    };
-    if(!fs.existsSync(__dirname+'/cache/SplineSans.ttf')) { 
+        fs.writeFileSync(pathCache + "/SplineSans-Medium.ttf", Buffer.from(getfont));
+    }
+    if (!fs.existsSync(pathCache + '/SplineSans.ttf')) { 
         let getfont2 = (await axios.get(`https://drive.google.com/u/0/uc?id=1--V7DANKLsUx57zg8nLD4b5aiPfHcmwD&export=download`, { responseType: "arraybuffer" })).data;
-        fs.writeFileSync(__dirname+"/cache/SplineSans.ttf", Buffer.from(getfont2, "utf-8"));
-    };
+        fs.writeFileSync(pathCache + "/SplineSans.ttf", Buffer.from(getfont2));
+    }
 
     let name, money;
 
@@ -34,7 +40,7 @@ module.exports.run = async function({ api, event, args, Currencies, Users }) {
         const uid = event.messageReply.senderID;
         name = (await Users.getData(uid)).name;
         money = (await Currencies.getData(uid)).money || 0;
-    } else if (Object.keys(event.mentions).length == 1) {
+    } else if (Object.keys(mentions).length == 1) {
         const mention = Object.keys(mentions)[0];
         name = (await Users.getData(mention)).name;
         money = (await Currencies.getData(mention)).money || 0;
@@ -45,35 +51,34 @@ module.exports.run = async function({ api, event, args, Currencies, Users }) {
 
     const argss = formatNumber(money);
 
-    const { loadImage, createCanvas } = require("canvas");
-    const path = __dirname + "/cache/atmaraxy.png";
-    const bg = (await axios.get(`https://i.ibb.co/NZD1Zzz/image.png`, {responseType: "arraybuffer" })).data;
-    fs.writeFileSync(path, Buffer.from(bg, "utf-8"));
-    const bgBase = await loadImage(path);
+    // Tải background
+    const pathImage = pathCache + "/atmaraxy.png";
+    if (!fs.existsSync(pathImage)) {
+        const bg = (await axios.get(`https://i.ibb.co/NZD1Zzz/image.png`, { responseType: "arraybuffer" })).data;
+        fs.writeFileSync(pathImage, Buffer.from(bg));
+    }
+    const bgBase = await loadImage(pathImage);
     const canvas = createCanvas(bgBase.width, bgBase.height);
     const ctx = canvas.getContext("2d");
-    const Canvas = global.nodemodule["canvas"];
+
+    // Đăng ký font
+    registerFont(pathCache + `/SplineSans-Medium.ttf`, { family: "SplineSans-Medium" });
+    registerFont(pathCache + `/SplineSans.ttf`, { family: "SplineSans" });
+
+    // Vẽ hình và text
     ctx.drawImage(bgBase, 0, 0, canvas.width, canvas.height);
-    Canvas.registerFont(__dirname+`/cache/SplineSans-Medium.ttf`, {
-        family: "SplineSans-Medium"
-    });
-    Canvas.registerFont(__dirname+`/cache/SplineSans.ttf`, {
-        family: "SplineSans"
-    });
     ctx.font = "50px SplineSans-Medium";
     ctx.fillStyle = "#000000";
     ctx.textAlign = "center";
-    ctx.fillText('' + argss + 'đ', 530, 359);
+    ctx.fillText(argss + 'đ', 530, 359);
+
+    // Xuất ra buffer
     const imageBuffer = canvas.toBuffer();
-    fs.writeFileSync(path, imageBuffer);
+    fs.writeFileSync(pathImage, imageBuffer);
 
-    const msg = {
+    // Gửi tin nhắn
+    return api.sendMessage({
         body: `Số tiền của bạn ${name} đây\nSố tiền của bạn đang có là ${argss}`,
-        attachment: fs.createReadStream(path)
-    };
-
-    return api.sendMessage(msg, threadID, async (error, info) => {
-        fs.unlinkSync(path);
-        messageID;
-    });
+        attachment: fs.createReadStream(pathImage)
+    }, threadID, () => fs.unlinkSync(pathImage));
 };
