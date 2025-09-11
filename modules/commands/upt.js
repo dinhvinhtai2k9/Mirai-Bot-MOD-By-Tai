@@ -83,7 +83,7 @@ module.exports.run = async ({ api, event, Users }) => {
     const timeStart = Date.now();
     let name = await Users.getNameUser(event.senderID);
 
-    const mediaUrl = 'https://files.catbox.moe/amblv9.gif';
+    const mediaUrl = 'https://files.catbox.moe/4msg2y.gif';
     const mediaStream = (await axios.get(mediaUrl, { responseType: 'stream' })).data;
 
     const uptimeMessage = `══════╗ ⇲  Uptime  ⇱ ╚══════
@@ -107,3 +107,4 @@ module.exports.run = async ({ api, event, Users }) => {
     api.sendMessage(`Error: ${error}`, event.threadID);
   }
 };
+
